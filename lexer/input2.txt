@@ -1,0 +1,42 @@
+section .data
+    ; Number literals
+    dec_val  dd  42.5       ; decimal number
+    hex_val  db  0x2A       ; hexadecimal number
+    oct_val  db  52o        ; octal number
+    bin_val  db  0b101010   ; binary number
+    1err db 123             ; wrong identifier
+
+    ; String literals
+    err_val db 'A"          ; wrong closing symbol
+    str_val  db "Hello, NASM!", 0
+
+    ; Data types
+    byte_val  db  255                      ; 1 byte
+    word_val  dw  65535                    ; 2 bytes
+    dword_val dd  4294967295               ; 4 bytes
+    qword_val dq  9223372036854775807      ; 8 bytes
+    tword_val dt  123456789012345678901234 ; 10 bytes
+    wrong_type db 1010Ab                   ; wrong binary number
+    wrong_ch@r db 1                        ; unknown symbol in identifier
+
+section .text
+    global _start
+
+_start:
+    mov eax, 4          ; syscall: sys_write
+    mov ebx, 1          ; stdout descriptor
+    mov ecx, str_val    ; string pointer
+    mov edx, 13         ; string len
+    int 0x80            ; kernel call
+
+    mov rax, [qword_val] ; 64-bit register RAX
+    mov eax, [dword_val] ; 32-bit register EAX
+    mov ax, [word_val]   ; 16-bit register AX
+    mov al, [byte_val]   ; 8-bit register AL
+
+    mov ebx, [tword_val]
+    mov edx, [tword_val + 4]
+
+    mov eax, 1
+    xor ebx, ebx
+    int 0x80

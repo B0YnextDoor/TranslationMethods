@@ -1,0 +1,13 @@
+section .data ; aboba boba 123
+    oct_num equ 52o
+    msg db 'Hello,', "World!", 0
+    1num equ 1234
+    hex_num equ 0x1A
+
+section .text
+    mov eax, num
+    add eax, hex_num
+    cmp eax, 10
+    je label
+label:
+    ret

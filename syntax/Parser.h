@@ -1,14 +1,12 @@
 #include <fstream>
 #include <unordered_map>
 #include <regex>
-#include <iomanip>
-#include <iostream>
-#include "Token.h"
-#include "Constants.h"
+#include "Tree.h"
 
-class Lexer
+class Parser
 {
 private:
+	TreeBuilder *builder = nullptr;
 	std::vector<Token> tokens;
 	std::vector<Token> comments;
 	std::vector<Token> errors;
@@ -30,5 +28,11 @@ private:
 	void analyzeLine(std::string line, size_t lineNumber);
 
 public:
-	std::vector<Token> analyzeFile(const std::string &filename);
+	Parser() {}
+	void analyzeFile(const std::string &filename);
+	~Parser()
+	{
+		if (builder)
+			delete builder;
+	}
 };

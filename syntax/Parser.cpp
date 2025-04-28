@@ -1,6 +1,6 @@
-#include "Lexer.h"
+#include "Parser.h"
 
-std::string Lexer::trim(const std::string &str)
+std::string Parser::trim(const std::string &str)
 {
 	size_t start = str.find_first_not_of(" \t\n\r");
 	if (start == std::string::npos)
@@ -9,7 +9,7 @@ std::string Lexer::trim(const std::string &str)
 	return str.substr(start, end - start + 1);
 }
 
-bool Lexer::isConstant(const std::string &str, char type, size_t lineNumber)
+bool Parser::isConstant(const std::string &str, char type, size_t lineNumber)
 {
 	std::string error = "";
 	if (type == 'd' && !std::regex_match(str, DEC_REGEX))
@@ -26,18 +26,18 @@ bool Lexer::isConstant(const std::string &str, char type, size_t lineNumber)
 	return false;
 }
 
-bool Lexer::isIdentificator(const std::string &str, size_t lineNumber)
+bool Parser::isIdentificator(const std::string &str, size_t lineNumber)
 {
 	return std::regex_match(str, IDENTIFIER_REGEX);
 }
 
-void Lexer::processError(std::string error, size_t lineNumber)
+void Parser::processError(std::string error, size_t lineNumber)
 {
 	error += " in line " + std::to_string(lineNumber) + "!";
 	errors.push_back(Token(errors.size() + 1, ERROR, error, "", lineNumber));
 }
 
-void Lexer::processComment(std::string str, size_t lineNumber, size_t start)
+void Parser::processComment(std::string str, size_t lineNumber, size_t start)
 {
 	std::string comm = str.substr(start);
 	if (comm.length())
@@ -45,7 +45,7 @@ void Lexer::processComment(std::string str, size_t lineNumber, size_t start)
 								 "Comment string in line " + std::to_string(lineNumber)));
 }
 
-size_t Lexer::processTextLexeme(std::string str, size_t lineNumber, size_t start)
+size_t Parser::processTextLexeme(std::string str, size_t lineNumber, size_t start)
 {
 	size_t len = str.length();
 	char endChar = str[start++];
@@ -66,7 +66,7 @@ size_t Lexer::processTextLexeme(std::string str, size_t lineNumber, size_t start
 	return start;
 }
 
-char Lexer::defineNumberType(char symb)
+char Parser::defineNumberType(char symb)
 {
 	if (symb == 'x' || symb == 'X')
 		return 'x';
@@ -77,7 +77,7 @@ char Lexer::defineNumberType(char symb)
 	return 'd';
 }
 
-size_t Lexer::processNumberLexeme(std::string str, size_t lineNumber, size_t start)
+size_t Parser::processNumberLexeme(std::string str, size_t lineNumber, size_t start)
 {
 	size_t len = str.length();
 	std::string buffer(1, str[start++]);
@@ -127,7 +127,7 @@ size_t Lexer::processNumberLexeme(std::string str, size_t lineNumber, size_t sta
 	return len;
 }
 
-size_t Lexer::processSeparator(std::string str, size_t lineNumber, size_t start)
+size_t Parser::processSeparator(std::string str, size_t lineNumber, size_t start)
 {
 	size_t i = start;
 	char sep = str[i];
@@ -153,7 +153,7 @@ size_t Lexer::processSeparator(std::string str, size_t lineNumber, size_t start)
 	return start + 1;
 }
 
-size_t Lexer::processOperator(std::string str, size_t lineNumber, size_t start)
+size_t Parser::processOperator(std::string str, size_t lineNumber, size_t start)
 {
 	std::string operatorLexeme(1, str[start++]);
 	std::string doubleCheck = operatorLexeme + str[start];
@@ -166,7 +166,7 @@ size_t Lexer::processOperator(std::string str, size_t lineNumber, size_t start)
 	return start;
 }
 
-size_t Lexer::processKeyword(std::string str, size_t lineNumber, size_t start)
+size_t Parser::processKeyword(std::string str, size_t lineNumber, size_t start)
 {
 	size_t len = str.length();
 	std::string lexem(1, std::tolower(str[start++]));
@@ -189,7 +189,7 @@ size_t Lexer::processKeyword(std::string str, size_t lineNumber, size_t start)
 	return len;
 }
 
-void Lexer::printErrors()
+void Parser::printErrors()
 {
 	int id_len = -1, val_len = 8;
 	for (const auto &v : this->errors)
@@ -207,7 +207,7 @@ void Lexer::printErrors()
 	std::string separator = "+" + std::string(id_len + 2, '-') +
 							"+" + std::string(val_len + 2, '-') +
 							"+\n";
-	std::cout << "\n=== LEXICAL ERRORS ===\n"
+	std::cout << "\n=== ERRORS ===\n"
 			  << separator
 			  << "| " << std::setw(id_len) << "#" << " | "
 			  << std::setw(val_len) << "Value" << " |\n"
@@ -221,7 +221,7 @@ void Lexer::printErrors()
 	std::cout << separator;
 }
 
-void Lexer::analyzeLine(std::string line, size_t lineNumber)
+void Parser::analyzeLine(std::string line, size_t lineNumber)
 {
 	size_t len = line.length();
 	if (!len)
@@ -271,13 +271,13 @@ void Lexer::analyzeLine(std::string line, size_t lineNumber)
 	}
 }
 
-std::vector<Token> Lexer::analyzeFile(const std::string &filename)
+void Parser::analyzeFile(const std::string &filename)
 {
 	std::ifstream file(filename);
 	if (!file.is_open())
 	{
 		std::cerr << "Can't open the file: " << filename << "\n";
-		return std::vector<Token>();
+		return;
 	}
 
 	std::string line;
@@ -290,9 +290,10 @@ std::vector<Token> Lexer::analyzeFile(const std::string &filename)
 	file.close();
 
 	if (!errors.empty())
-	{
 		printErrors();
-		return std::vector<Token>();
+	else
+	{
+		builder = new TreeBuilder(tokens);
+		builder->buildTree();
 	}
-	return tokens;
 }

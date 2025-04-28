@@ -1,0 +1,13 @@
+section .data
+    oct_num equ 52o
+    msg db 'Hello,', "World!", 0
+    num equ 1234
+    hex_num equ 0x1A
+
+section .text
+    mov eax, num
+    add eax, [hex_num + 4]
+    cmp eax, 10
+    je label
+label:
+    ret

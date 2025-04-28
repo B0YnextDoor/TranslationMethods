@@ -1,8 +1,40 @@
-#include "Token.h"
-#include "Node.h"
+#include "Types.h"
 #include "Constants.h"
 
-class Parser
+enum NodeType
+{
+	SECTION,
+	INSTRUCTION,
+	INITIALIZATION,
+	EXPRESSION,
+	NONE,
+};
+
+class Node
+{
+private:
+	NodeType type;
+	std::string name;
+	std::string value;
+	size_t line;
+	std::vector<Node *> children;
+
+public:
+	Node() {}
+	Node(NodeType type, std::string name,
+		 std::string value = "", size_t line = 0) : type(type), name(name), value(value), line(line) {}
+
+	NodeType Type();
+	size_t Line();
+	std::string Value();
+	void Value(std::string value);
+	std::vector<Node *> Children();
+	bool hasChildren();
+	void addChild(Node *node);
+	void print(size_t level = 0);
+};
+
+class TreeBuilder
 {
 private:
 	Node *root = nullptr;
@@ -30,9 +62,9 @@ private:
 	void printErrors();
 
 public:
-	Parser(std::vector<Token> &tokens);
-	Node *buildTree();
-	~Parser()
+	TreeBuilder(std::vector<Token> &tokens);
+	void buildTree();
+	~TreeBuilder()
 	{
 		if (root)
 			delete root;

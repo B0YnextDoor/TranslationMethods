@@ -1,31 +1,77 @@
-#include "Parser.h"
+#include "Tree.h"
 
-void Parser::processError(std::string message, size_t line)
+NodeType Node::Type()
+{
+	return type;
+}
+
+size_t Node::Line()
+{
+	return line;
+}
+
+std::string Node::Value()
+{
+	return value;
+}
+
+void Node::Value(std::string value)
+{
+	this->value = value;
+}
+
+std::vector<Node *> Node::Children()
+{
+	return children;
+}
+
+bool Node::hasChildren()
+{
+	return !(this->children.empty());
+}
+
+void Node::addChild(Node *node)
+{
+	children.push_back(node);
+}
+
+void Node::print(size_t level)
+{
+	for (int i = 0; i < level; ++i)
+		std::cout << "  ";
+	std::cout << name << ": " << value << "\n";
+	for (auto child : children)
+	{
+		child->print(level + 1);
+	}
+}
+
+void TreeBuilder::processError(std::string message, size_t line)
 {
 	message += " in line " + std::to_string(line) + "!";
 	isError = true;
 	errors.push_back(Token(errors.size() + 1, ERROR, message, "", line));
 }
 
-Node *Parser::processLiteral()
+Node *TreeBuilder::processLiteral()
 {
 	Token token = tokens[index];
 	return new Node(NONE, "LITERAL_NODE", token.value, token.line);
 }
 
-Node *Parser::processIdentifier()
+Node *TreeBuilder::processIdentifier()
 {
 	Token token = tokens[index];
 	return new Node(NONE, "IDENTIFIER_NODE", token.value, token.line);
 }
 
-Node *Parser::processKeyword()
+Node *TreeBuilder::processKeyword()
 {
 	Token token = tokens[index];
 	return new Node(NONE, "KEYWORD_NODE", token.value, token.line);
 }
 
-int Parser::precedence(const Token &token)
+int TreeBuilder::precedence(const Token &token)
 {
 	std::string op = token.value;
 	if (op == "*" || op == "/" || op == "//")
@@ -41,7 +87,7 @@ int Parser::precedence(const Token &token)
 	return 0;
 }
 
-std::vector<Token> Parser::toReverseNotation(std::vector<Token> &tokens)
+std::vector<Token> TreeBuilder::toReverseNotation(std::vector<Token> &tokens)
 {
 	std::vector<Token> res;
 	std::stack<Token> ops;
@@ -84,7 +130,7 @@ std::vector<Token> Parser::toReverseNotation(std::vector<Token> &tokens)
 	return res;
 }
 
-Node *Parser::createExpressionNode(std::vector<Token> &tokens, size_t line, size_t start = 0)
+Node *TreeBuilder::createExpressionNode(std::vector<Token> &tokens, size_t line, size_t start = 0)
 {
 	size_t n = tokens.size();
 	std::vector<Node *> buffer;
@@ -130,7 +176,7 @@ Node *Parser::createExpressionNode(std::vector<Token> &tokens, size_t line, size
 	return node;
 }
 
-Node *Parser::processExpression()
+Node *TreeBuilder::processExpression()
 {
 	Token token = tokens[index++];
 	std::string stop = token.value == "[" ? "]" : ")";
@@ -138,8 +184,7 @@ Node *Parser::processExpression()
 	size_t nodeLine = token.line;
 	Token prevToken = token;
 	std::vector<Token> buffer;
-	std::stack<std::string> braces;
-	bool isOperand = false;
+	bool hasOperator = false;
 	while (index < len && token.value != stop)
 	{
 		if (token.type == IDENTIFIER)
@@ -149,7 +194,6 @@ Node *Parser::processExpression()
 				processError("Invalid expression syntax! OPERATOR expected", token.line);
 				return nullptr;
 			}
-			isOperand = false;
 		}
 		else if (token.type == CONSTANT)
 		{
@@ -163,16 +207,15 @@ Node *Parser::processExpression()
 				processError("Invalid expression syntax! OPERATOR expected", token.line);
 				return nullptr;
 			}
-			isOperand = false;
 		}
 		else if (token.type == OPERATOR)
 		{
-			if (buffer.empty() || isOperand)
+			if (buffer.empty())
 			{
 				processError("Invalid expression syntax! IDENTIFIER, LITERAL OR REGISTER expected", token.line);
 				return nullptr;
 			}
-			isOperand = true;
+			hasOperator = true;
 		}
 		else if (token.type == KEYWORD)
 		{
@@ -186,7 +229,6 @@ Node *Parser::processExpression()
 				processError("Invalid expression syntax! OPERATOR expected", token.line);
 				return nullptr;
 			}
-			isOperand = false;
 		}
 		else if (token.type == SEPARATOR)
 		{
@@ -196,23 +238,6 @@ Node *Parser::processExpression()
 				processError("Invalid expression syntax! Invalid separator", token.line);
 				return nullptr;
 			}
-			if (token.value == RBRACE && (braces.empty() || (prevToken.type != CONSTANT && prevToken.type != KEYWORD &&
-															 prevToken.type != IDENTIFIER)))
-			{
-				processError("Invalid expression syntax! Invalid separator", token.line);
-				return nullptr;
-			}
-			Token nextToken = tokens[index + 1];
-			if (token.value == LBRACE && nextToken.type != CONSTANT && nextToken.type != KEYWORD &&
-				nextToken.type != IDENTIFIER)
-			{
-				processError("Invalid expression syntax! Invalid separator", token.line);
-				return nullptr;
-			}
-			if (token.value == LBRACE)
-				braces.push(LBRACE);
-			else
-				braces.pop();
 		}
 		else
 		{
@@ -229,11 +254,9 @@ Node *Parser::processExpression()
 		token = tokens[++index];
 	}
 	Node *expression = nullptr;
-	if (!braces.empty())
-		processError("Invalid expression syntax! Invalid braces sequence", token.line);
-	else if (buffer.empty())
+	if (buffer.empty())
 		processError("Invalid expression syntax", token.line);
-	else if (isOperand)
+	else if (hasOperator && buffer.size() < 3)
 		processError("Invalid expression syntax! OPERATOR second argument expected", token.line);
 	else if (buffer.size() == 1)
 		expression = new Node(EXPRESSION, "EXPRESSION_NODE", buffer[0].value, nodeLine);
@@ -245,14 +268,14 @@ Node *Parser::processExpression()
 	return expression;
 }
 
-bool Parser::isSection(Token &token, Token &tokenNext)
+bool TreeBuilder::isSection(Token &token, Token &tokenNext)
 {
 	auto checkKeyword = std::find(SECTION_NODE.begin(), SECTION_NODE.end(), token.value);
 	return (token.type == KEYWORD && checkKeyword != SECTION_NODE.end()) ||
 		   (token.type == IDENTIFIER && tokenNext.type == SEPARATOR);
 }
 
-Node *Parser::processInitialization()
+Node *TreeBuilder::processInitialization()
 {
 	Token token = tokens[index];
 	size_t nodeLine = token.line;
@@ -339,7 +362,7 @@ Node *Parser::processInitialization()
 	return initialization;
 }
 
-Node *Parser::processInstruction()
+Node *TreeBuilder::processInstruction()
 {
 	Token token = tokens[index];
 	size_t nodeLine = token.line;
@@ -380,15 +403,14 @@ Node *Parser::processInstruction()
 				std::string value = buffer[0]->Value();
 				bool checkStream = std::find(STREAM_INSTRUCTIONS.begin(), STREAM_INSTRUCTIONS.end(), value) ==
 								   STREAM_INSTRUCTIONS.end();
-				if ((!checkReg || buffer.size() > 1) && (std::tolower(value[0]) == 'j' || !checkStream))
+				if (!checkReg && (std::tolower(value[0]) == 'j' || !checkStream))
 				{
 					processError("Instruction doesn't match its arguments! Label expected", token.line);
 					return nullptr;
 				}
 				bool checkTypeMacro = token.description.find("type") != std::string::npos;
 				if (!checkMacro && (((value == CALL || value == EXTERN) && (buffer.size() > 1 || checkTypeMacro)) ||
-									(value != CALL && value != EXTERN &&
-									 (!checkTypeMacro || (checkTypeMacro && buffer.size() == 1)))))
+									(value != CALL && value != EXTERN && !checkTypeMacro)))
 				{
 					processError("Wrong instruction syntax! Invalid arguments", token.line);
 					return nullptr;
@@ -419,11 +441,6 @@ Node *Parser::processInstruction()
 				processError("Wrong instruction syntax! INSTUCTION KEYWORD expected", token.line);
 				return nullptr;
 			}
-			else if (buffer.size() == 1)
-			{
-				processError("Wrong instruction syntax! IDENTIFIER, REGISTER or MACRO expected", token.line);
-				return nullptr;
-			}
 			else if (token.value == COLON || prevToken.value == token.value ||
 					 RBRACES.find(token.value) != std::string::npos)
 			{
@@ -440,10 +457,14 @@ Node *Parser::processInstruction()
 			else
 			{
 				Token nextToken = tokens[index + 1];
-				if (nextToken.type == CONSTANT && nextToken.description.find("Text") != std::string::npos &&
-					nextToken.value.length() > 3)
+				if (buffer.size() == 1)
 				{
-					processError("Wrong instruction syntax! Invalid LITERAL", nextToken.line);
+					processError("Wrong instruction syntax! IDENTIFIER, LITERAL OR REGISTER expected", token.line);
+					return nullptr;
+				}
+				else if (nextToken.type == CONSTANT && token.description.find("Text") != std::string::npos)
+				{
+					processError("Wrong instruction syntax! Invalid LITERAL", token.line);
 					return nullptr;
 				}
 				else if (nextToken.type == KEYWORD && nextToken.description.find("register") == std::string::npos &&
@@ -456,14 +477,9 @@ Node *Parser::processInstruction()
 		}
 		else if (token.type == CONSTANT)
 		{
-			if (buffer.empty())
+			if (buffer.empty() || (buffer.size() == 1 && prevToken.type != KEYWORD))
 			{
 				processError("Wrong instruction syntax! INSTUCTION KEYWORD expected", token.line);
-				return nullptr;
-			}
-			else if (buffer.size() == 1 && (prevToken.type != KEYWORD || prevToken.value != INT))
-			{
-				processError("Wrong instruction syntax! IDENTIFIER, REGISTER or MACRO expected", token.line);
 				return nullptr;
 			}
 			else if (buffer.size() > 1 && prevToken.value != COMMA)
@@ -493,15 +509,13 @@ Node *Parser::processInstruction()
 											tokens[index + 1].value) != INITIALIZATION_NODE.end()))))
 			break;
 	}
-	auto nodeValue = buffer.begin();
-	std::string value = (*nodeValue)->Value();
-	if (buffer.empty() || (buffer.size() < 2 && value != RET) ||
-		(buffer.size() > 1 && value == RET))
+	if (buffer.empty() || (buffer.size() < 2 && buffer[0]->Value() != RET))
 	{
 		processError("Wrong instruction syntax! Invalid arguments", prevToken.line);
 		return nullptr;
 	}
-	Node *intsrtuction = new Node(INSTRUCTION, "INSTRUCTION_NODE", value, nodeLine);
+	auto nodeValue = buffer.begin();
+	Node *intsrtuction = new Node(INSTRUCTION, "INSTRUCTION_NODE", (*nodeValue)->Value(), nodeLine);
 	if (buffer.size() > 1)
 	{
 		buffer.erase(nodeValue);
@@ -513,9 +527,22 @@ Node *Parser::processInstruction()
 	return intsrtuction;
 }
 
-Node *Parser::checkChild(Node *parent, Node *node, bool isInit)
+Node *TreeBuilder::checkChild(Node *parent, Node *node, bool isInit)
 {
-	if (!node || !parent || !isInit)
+	if (!node || !parent)
+		return node;
+	if (isInit && node->Type() != INITIALIZATION)
+	{
+
+		processError("Data section must contain only initializations! Invalid instruction", node->Line());
+		return nullptr;
+	}
+	else if (!isInit && node->Type() == INITIALIZATION)
+	{
+		processError("Code section must contain only instructions! Invalid initialization", node->Line());
+		return nullptr;
+	}
+	else if (!isInit)
 		return node;
 	auto identifier = node->Children()[0]->Value();
 	for (const auto &child : parent->Children())
@@ -529,7 +556,7 @@ Node *Parser::checkChild(Node *parent, Node *node, bool isInit)
 	return node;
 }
 
-Node *Parser::checkDuplicates(Node *node)
+Node *TreeBuilder::checkDuplicates(Node *node)
 {
 	if (!node)
 		return nullptr;
@@ -544,7 +571,7 @@ Node *Parser::checkDuplicates(Node *node)
 	return node;
 }
 
-void Parser::panicMode()
+void TreeBuilder::panicMode()
 {
 	while (index < len)
 	{
@@ -567,7 +594,7 @@ void Parser::panicMode()
 	}
 }
 
-Node *Parser::processSection()
+Node *TreeBuilder::processSection()
 {
 	Token token = tokens[index], tokenNext = tokens[++index];
 	auto checkKeyword = std::find(SECTION_NODE.begin(), SECTION_NODE.end(), token.value);
@@ -610,10 +637,15 @@ Node *Parser::processSection()
 		else if (node)
 			node->addChild(instr);
 	}
+	if (node && !node->hasChildren())
+	{
+		processError("Wrong section declaration", sectionLine);
+		return nullptr;
+	}
 	return checkDuplicates(node);
 }
 
-void Parser::printErrors()
+void TreeBuilder::printErrors()
 {
 	int id_len = -1, val_len = 8;
 	for (const auto &v : this->errors)
@@ -645,14 +677,14 @@ void Parser::printErrors()
 	std::cout << separator;
 }
 
-Parser::Parser(std::vector<Token> &tokens)
+TreeBuilder::TreeBuilder(std::vector<Token> &tokens)
 {
 	this->tokens = tokens;
 	len = tokens.size();
-	root = new Node(SECTION, "PROGRAM_NODE");
+	root = new Node(NONE, "PROGRAM_NODE");
 }
 
-Node *Parser::buildTree()
+void TreeBuilder::buildTree()
 {
 	while (index < len)
 	{
@@ -662,9 +694,7 @@ Node *Parser::buildTree()
 	}
 
 	if (!errors.empty())
-	{
 		printErrors();
-		return nullptr;
-	}
-	return root;
+	else
+		root->print();
 }

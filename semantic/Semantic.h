@@ -9,8 +9,7 @@ class Semantic
 {
 private:
 	Node *root = nullptr;
-	Node *main = nullptr;
-	Node *func = nullptr;
+	std::vector<Node *> identifiers;
 	std::vector<Token> errors;
 
 	void processError(std::string message, size_t line);
@@ -24,15 +23,13 @@ private:
 	void defineLiteralType(Node *node);
 	void processDefine(Node *node);
 	void processInitialization(Node *node);
-	Node *findNode(std::string value, bool isRoot, bool isRegister);
-	size_t getNode(Node *);
+	Node *findNode(std::string value, bool isRoot);
 	void processRegister(Node *node, Node *prevNode, std::string type);
 	void processIdentifier(Node *node, Node *prevNode, std::string type);
 	void processLiteral(Node *node, Node *prevNode, std::string type);
 	void processChildren(std::vector<Node *> children, std::string nodeValue);
 	bool checkExpression(Node *node);
 	void processExpression(Node *node, Node *prevNode, std::string type);
-	void removeIdentifier(Node *);
 	void processStream(Node *node);
 	void processInstruction(Node *node);
 	void processNode(Node *node);
@@ -40,8 +37,6 @@ private:
 	void printErrors();
 
 public:
-	std::vector<Node *> identifiers;
-	std::vector<Node *> registers;
 	Semantic(Node *tree);
-	Node *analize();
+	void analize();
 };

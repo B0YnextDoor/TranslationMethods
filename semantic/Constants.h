@@ -5,7 +5,6 @@
 #include <vector>
 #include <string>
 #include <regex>
-#include <map>
 
 const std::regex IDENTIFIER_REGEX = std::regex("^[a-zA-Z_.][a-zA-Z0-9_]*$");
 
@@ -62,12 +61,4 @@ const std::unordered_map<std::string, int> INT_TYPES = {{"int8_t", INT8_T}, {"ui
 const std::unordered_map<std::string, int> REAL_TYPES = {{"float", FLOAT}, {"double", DOUBLE}, {"long double", LONG_DOUBLE}};
 const std::unordered_map<std::string, int> TYPE_MACRO = {{"byte", INT8_T}};
 
-const std::regex LEN_REGEX = std::regex(R"(\[(\d+)\])");
-
-const std::unordered_map<std::string, std::string> INSTRUCTIONS = {{"mov", "="}, {"lea", "="}, {"int", "int"}, {"add", "+"}, {"sub", "-"}, {"mul", "*"}, {"imul", "*"}, {"div", "/"}, {"idiv", "/"}, {"inc", "++"}, {"dec", "--"}, {"neg", "neg"}, {"and", "&"}, {"or", "|"}, {"xor", "^"}, {"not", "~"}, {"shl", "<<"}, {"sal", "<<"}, {"shr", ">>"}, {"sar", ">>"}, {"cmp", "cmp"}, {"je", "=="}, {"jg", ">"}, {"jl", "<"}, {"jne", "!="}, {"jge", ">="}, {"loop", "!="}, {"jmp", "call"}, {"call", "call"}, {"push", "push"}, {"pop", "pop"}, {"ret", "ret"}};
-
-const std::string ARITHMETIC_INST = "+ - * / ++ -- neg";
-const std::string BIT_INST = "& | ^ ~ >> <<";
-
-const std::map<std::string, std::string> CONDITIONS = {{"==", "=="}, {">", ">"}, {"<", "<"}, {">=", "> =="}, {"<=", "< =="}, {"!=", "> <"}};
 #endif

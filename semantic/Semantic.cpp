@@ -46,7 +46,7 @@ std::string Semantic::transformNumber(std::string num, char type)
 		return "0" + num.substr(0, n - 1);
 	}
 	else if (type == 'c')
-		return std::to_string(int(num.substr(1, num.length() - 2)[0]));
+		return num.substr(1, num.length() - 2);
 	return num;
 }
 
@@ -210,7 +210,6 @@ void Semantic::processDefine(Node *node)
 		type = literal->ValueType();
 	}
 	identifier->ValueType(type);
-	identifier->addChild(literal);
 	identifiers.push_back(identifier);
 }
 
@@ -245,27 +244,6 @@ void Semantic::processInitialization(Node *node)
 			}
 			count += processNumberLiteral(typeSize, children[i], isFloatingPoint);
 		}
-		if (i > 1 && children[i]->ValueType() != children[i - 1]->ValueType() && !isString)
-		{
-			if (isFloatingPoint)
-			{
-				for (size_t j = i - 1; j >= 1; --j)
-					children[j]->ValueType() = children[i]->ValueType();
-			}
-			else
-			{
-				bool isPrevReal = REAL_TYPES.find(children[i - 1]->ValueType()) != REAL_TYPES.end();
-				if (isPrevReal || children[i - 1]->ValueType()[0] == 'u')
-				{
-					children[i]->ValueType() = children[i - 1]->ValueType();
-				}
-				else
-				{
-					children[i - 1]->ValueType() = children[i]->ValueType();
-				}
-			}
-		}
-		identifier->addChild(children[i]);
 	}
 	std::string arr_size = " [" + std::to_string(count) + "]";
 	if (isString)
@@ -275,23 +253,15 @@ void Semantic::processInitialization(Node *node)
 	identifiers.push_back(identifier);
 }
 
-Node *Semantic::findNode(std::string value, bool isRoot = false, bool isRegister = false)
+Node *Semantic::findNode(std::string value, bool isRoot = false)
 {
-	auto nodes = isRoot ? root->Children() : isRegister ? registers
-														: identifiers;
+	auto nodes = isRoot ? root->Children() : identifiers;
 	for (const auto &node : nodes)
 	{
 		if (node->Value() == value)
 			return node;
 	}
 	return nullptr;
-}
-
-size_t Semantic::getNode(Node *node)
-{
-	auto nodes = root->Children();
-	auto ptr = std::find(nodes.begin(), nodes.end(), node);
-	return std::distance(nodes.begin(), ptr);
 }
 
 void Semantic::processRegister(Node *node, Node *prevNode, std::string type)
@@ -305,8 +275,6 @@ void Semantic::processRegister(Node *node, Node *prevNode, std::string type)
 	}
 	std::string valueType = "int" + match.str() + "_t";
 	int typeSize = std::stoi(match.str());
-	if (!findNode(keyword->first, false, true))
-		registers.push_back(node);
 	node->ValueType(valueType);
 	if (type.empty())
 	{
@@ -350,9 +318,6 @@ void Semantic::processIdentifier(Node *node, Node *prevNode, std::string type)
 	std::string valueType = identifier->ValueType();
 	if (valueType.empty())
 		return;
-	size_t checkArr = valueType.find("[");
-	if (checkArr != std::string::npos)
-		valueType = valueType.substr(0, checkArr - 1);
 	auto checkReal = REAL_TYPES.find(valueType);
 	auto checkInt = INT_TYPES.find(valueType);
 	int typeSize;
@@ -394,10 +359,7 @@ void Semantic::processIdentifier(Node *node, Node *prevNode, std::string type)
 			prevNode->ValueType(valueType);
 	}
 	if (isString)
-	{
 		node->ValueType("char*");
-		prevNode->ValueType("char*");
-	}
 }
 
 void Semantic::processLiteral(Node *node, Node *prevNode, std::string type)
@@ -536,21 +498,10 @@ void Semantic::processExpression(Node *node, Node *prevNode, std::string type)
 		else
 			prevTypeSize = checkReal->second;
 		if (checkExpression(node))
-		{
-			if (prevTypeSize == typeSize)
-				prevNode->ValueType(valueType);
-			else
-				node->ValueType(type);
-		}
+			node->ValueType(type);
 		else if (prevTypeSize < typeSize)
 			processError("Invalid type in instruction! Expected " + type + " type", node->Line());
 	}
-}
-
-void Semantic::removeIdentifier(Node *node)
-{
-	auto idt = std::find(identifiers.begin(), identifiers.end(), node);
-	identifiers.erase(idt);
 }
 
 void Semantic::processStream(Node *node)
@@ -565,49 +516,27 @@ void Semantic::processStream(Node *node)
 		processError("Label must be initialized! Uninitializaed label", node->Line());
 		return;
 	}
-	if (nodeValue == GLOBAL && !main)
-	{
+	if (nodeValue == GLOBAL)
 		type = "MAIN " + type;
-		main = parent;
-	}
 	auto check = findNode(parent->Value());
 	if (nodeValue == CALL || nodeValue == GLOBAL || nodeValue == JMP)
 	{
-		node->ValueType(type + " CALL");
-		if (check)
-			return;
 		parent->ValueType(type);
-		func = parent;
-		processSection(parent);
-		identifiers.push_back(parent);
-		if (type[0] != 'M')
+		node->ValueType(type + " CALL");
+		if (!check)
 		{
-			auto sections = root->Children();
-			size_t idx = getNode(parent) + 1, len = sections.size();
-			while (idx < len)
-			{
-				auto tmp = sections[idx++];
-				if (!tmp->ValueType().empty())
-					break;
-				processSection(tmp);
-				if (tmp->ValueType().empty() || tmp->ValueType().find("FUNCTION") != std::string::npos)
-					break;
-			}
+			processSection(parent);
+			identifiers.push_back(parent);
 		}
-		func = nullptr;
 		return;
 	}
 	if (parent->Line() < node->Line())
 	{
 		type = "LOOP";
 		parent->ValueType(type);
-		node->ValueType(type + " (!= 0) CONDTITION CHECK");
-		if (check)
-			removeIdentifier(parent);
-		if (!func && main)
-			main->addChild(parent);
-		else if (func)
-			func->addChild(parent);
+		node->ValueType(type + " CONDTITION CHECK");
+		if (!check)
+			identifiers.push_back(parent);
 		return;
 	}
 	processSection(parent);
@@ -617,11 +546,8 @@ void Semantic::processStream(Node *node)
 		return;
 	type = "IF " + match[0].str();
 	parent->ValueType(type + " BLOCK");
-	node->ValueType(type + " CONDITION CHECK");
-	if (!func && main)
-		main->addChild(parent);
-	else if (func)
-		func->addChild(parent);
+	node->ValueType(type + "  CONDITION CHECK");
+	identifiers.push_back(parent);
 }
 
 void Semantic::processInstruction(Node *node)
@@ -700,7 +626,7 @@ Semantic::Semantic(Node *tree)
 	root = tree;
 }
 
-Node *Semantic::analize()
+void Semantic::analize()
 {
 	auto children = root->Children();
 
@@ -719,13 +645,14 @@ Node *Semantic::analize()
 	}
 
 	if (!errors.empty())
-	{
 		printErrors();
-		return nullptr;
+	else
+	{
+		root->print();
+		std::cout << "\nIdentifiers\n";
+		for (const auto &val : identifiers)
+		{
+			std::cout << val->Name() << ": " << val->Value() << " - " << val->ValueType() << "\n";
+		}
 	}
-	// std::cout << "Identifiers\n";
-	// for (const auto &val : identifiers)
-	// 	val->print();
-	// std::cout << "\n\n";
-	return root;
 }

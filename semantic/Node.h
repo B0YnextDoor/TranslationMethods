@@ -17,7 +17,7 @@ enum NodeType
 
 class Node
 {
-private:
+protected:
 	NodeType type;
 	std::string name;
 	std::string value;
